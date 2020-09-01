@@ -1,8 +1,10 @@
 import pandas as pd
 import numpy as np
+import lxml
 import requests
 from bs4 import BeautifulSoup
 from statsmodels.tsa.stattools import adfuller
+from datetime import datetime
 
 
 ###function to scrape data from coinmarket
@@ -20,6 +22,63 @@ def cb_hist_data_scrap(coin,startdate,enddate):
     df['Date']=pd.to_datetime(df['Date'])
     df.set_index(['Date'], inplace=True)
     df.sort_index(inplace=True)
+    return df
+
+def yf_historical_data(ticker,end_date=None, start_date=None,freq='Daily'):
+    """
+
+    :param ticker: stock ticker or list of stock tickers
+    :param end_date: last date of data
+    :param start_date: first date of data. If start date is not available, then first available date is retrieved
+    :param freq: frequency of quotes either daily weekly or monthly
+    :return:
+    """
+    #set default end date to today
+    if end_date==None:
+        end_date = datetime.utcnow()
+    else:
+        end_date = datetime.strptime(end_date, '%d/%m/%Y')
+    #set default start date to prior 30 days
+    if start_date==None:
+        start_date = datetime(1000, 1, 1, 0, 0)
+    else:
+        start_date = datetime.strptime(start_date, '%d/%m/%Y')
+
+    def yf_scraping_link(ticker,end_date,start_date,freq):
+        #transform end- and startdate in int
+        end=int(end_date.timestamp())
+        start=int(start_date.timestamp())
+        #check date consistency
+        if end<start:
+            raise Exception("End date must be after the start date!")
+        if end_date> datetime.utcnow() or start_date> datetime.utcnow():
+            raise Exception("Start/End dates cannot be future dates!")
+        #transform frequency in yf interval type
+        freq_dict = {'daily': '1d', 'weekly': '1w', 'monthly': '1m'}
+        f = freq_dict[freq.lower()]
+        #request url and check status
+        yf_link = f"https://query1.finance.yahoo.com/v7/finance/download/{ticker.upper()}?period1={start}&period2={end}&interval={f}&events=history"
+        r=requests.get(yf_link)
+        r.raise_for_status()
+        #scrape df
+        df = pd.read_csv(yf_link,parse_dates=True)
+        df["Ticker"]=ticker
+        df["Date"]=pd.to_datetime(df["Date"])
+        #check if requested startdate is available
+        first_date=df['Date'].iloc[0]
+        if first_date>start_date:
+            print(f"Time series starts on {first_date.strftime('%d/%m/%Y')}")
+        return df
+    if isinstance(ticker,list):
+        df_list=[]
+        for t in ticker:
+            df=yf_scraping_link(ticker=t,end_date=end_date,start_date=start_date,freq=freq)
+            df_list.append(df)
+        df=pd.concat(df_list)
+    else:
+        df=yf_scraping_link(ticker=ticker,end_date=end_date,start_date=start_date,freq=freq)
+    df.set_index(["Ticker", "Date"],inplace=True)
+
     return df
     
 def summary_stats_partition (input_list, n):
