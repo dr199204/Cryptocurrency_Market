@@ -160,7 +160,7 @@ def kurtosis(r,ddof=0):
 def jb_test_is_normal(r, critical_level=0.01):
     from scipy.stats import jarque_bera
     if isinstance(r, pd.DataFrame):
-        return r.aggregate(is_normal)
+        return r.aggregate(jb_test_is_normal)
     else:
         statistic, p_value = jarque_bera(r)
         print('J_B Statistic: %f'%statistic)
